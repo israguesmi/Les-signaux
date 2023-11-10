@@ -1,44 +1,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/wait.h>
+#include <signal.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
+volatile sig_atomic_t received_sigint = 0;
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s NF NM\n", argv[0]);
+void sigint_handler(int signum) {
+    received_sigint = 1;
+}
+
+int main() {
+    struct sigaction sa;
+    sa.sa_handler = sigint_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+        perror("Erreur lors de la configuration du gestionnaire de signal");
         return 1;
     }
 
-    int NF = atoi(argv[1]);  // Nombre de fils
-    int NM = atoi(argv[2]);  // Nombre de fois à afficher
+    int pid = getpid();
 
-    for (int i = 0; i < NF; i++) {
-        pid_t pid = fork();
+    while (1) {
+        printf("Je suis le processus %d\n", pid);
+        sleep(1);
 
-        if (pid == -1) {
-            perror("fork");
-            return 1;
-        }
-
-        if (pid == 0) {  // Processus fils
-            for (int j = 0; j < NM; j++) {
-                printf("Activite rang %d : identifiant = %d\n", i, getpid());
-            }
-            exit(i);
-        }
-    }
-
-    for (int i = 0; i < NF; i++) {
-        int status;
-        pid_t terminated_pid = wait(&status);
-        if (WIFEXITED(status)) {
-            int retour = WEXITSTATUS(status);
-            printf("Valeur retournée par le fils %d = %d\n", terminated_pid, retour);
+        if (received_sigint) {
+            printf("Ctrl-C/SIGINT reçu par le processus de n° %d\n", pid);
+            received_sigint = 0;
         }
     }
 
